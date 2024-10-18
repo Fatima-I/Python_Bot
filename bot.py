@@ -1,5 +1,8 @@
 import pandas as pd
 from selenium import webdriver
+import gspread
+from google.oauth2.service_account import Credentials
+from gspread_dataframe import set_with_dataframe
 import time
 import re
 import threading
@@ -7,37 +10,37 @@ from selenium.webdriver.chrome.service import Service as ChromeService
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.common.by import By
 
-sheet_id = '1Ii3g9GzR8_X3ZWXuR7vGLbjWnUECwDFuQyOPFw9_khU'
-sheet_name = "Form Data"
-gid = '0'
+scope = [
+    "https://www.googleapis.com/auth/spreadsheets"
+]
 
-read = pd.read_csv('https://docs.google.com/spreadsheets/d/1Ii3g9GzR8_X3ZWXuR7vGLbjWnUECwDFuQyOPFw9_khU/export?format=csv')
-original = read
-#print(read)
-#print(read.iloc[0])
-rows = (int) (len(read.index))
-for i in range(0,rows):
-    if(pd.isnull(read['Form_Filling'][i])):
-        read['Form_Filling'][i] = "Not Done"
+credentials = Credentials.from_service_account_file("credentials.json", scopes=scope)
+client = gspread.authorize(credentials)
 
-read = read.drop_duplicates()
-read = read.dropna()
-read = read.reset_index()
+sheet_id = "1Ii3g9GzR8_X3ZWXuR7vGLbjWnUECwDFuQyOPFw9_khU"
+g_sheet = client.open_by_key(sheet_id)
 
-print(read)
-#rows = (int) (read.index.stop)
-rows = (int) (len(read.index))
+data = g_sheet.sheet1.get_all_values()
+
+dataframe = pd.DataFrame(data[1:], columns=data[0])
+
+#print(dataframe)
+
+rows = (int) (len(dataframe.index))
+
+#print("Columns:", dataframe.columns.tolist())
+
 #print(rows)
 
 print("From which row, you want to start form filling?")
 
 starting_row = (int) (input())
-if(starting_row < 0 or starting_row > rows-1):
-    while(starting_row < 0 or starting_row > rows-1):
+if(starting_row < 2 or starting_row > rows+1):
+    while(starting_row < 2 or starting_row > rows+1):
         print("Invalid Row Number, write again")
         starting_row = (int) (input())
 
-count = starting_row
+count = starting_row-2
 
 print("Enter Number Of Threads")
 
@@ -45,8 +48,7 @@ no_Of_Threads = (int) (input())
 if(no_Of_Threads < 0 or no_Of_Threads > rows-1):
     while(no_Of_Threads < 0 or no_Of_Threads > rows):
         print("Invalid Input, write again")
-        no_Of_Threads = (int) (input())   
-#print(name)
+        no_Of_Threads = (int) (input())
 
 def is_Valid_Name(n):
     for char in n:
@@ -62,20 +64,28 @@ def is_Valid_Email(e):
     print("Invalid Email (Skipping the row)")
     return False
 
+def is_Null_Value(v):
+    #if(pd.isna(dataframe[v]) or pd.isnull(dataframe[v])):
+    #    return False
+    #return True
+    return pd.notna(v)
 
-def form_filling(i):   
-    if(is_Valid_Name(read['Names'][i]) and is_Valid_Email(read['Emails'][i])):
+def form_filling(i):
+    if(dataframe['Form_Filling'][i] == "Done"):
+        print("A form is already filled with same data")
+    elif(is_Valid_Name(dataframe['Names'][i]) and is_Valid_Email(dataframe['Emails'][i])
+                and is_Null_Value(dataframe['Names'][i]) and is_Null_Value(dataframe['Emails'][i])):
         web = webdriver.Chrome()
         web.get('https://tally.so/r/wzrV0a')
 
         time.sleep(2)
 
-        name = read['Names'][i]
+        name = dataframe['Names'][i]
         name_pathx = web.find_element(By.XPATH,'//*[@id="6ba08823-0306-4a31-8683-ed6708253c1d"]')
         name_pathx.send_keys(name)
         print(name)
 
-        email = read['Emails'][i]
+        email = dataframe['Emails'][i]
         email_pathx = web.find_element(By.XPATH,'//*[@id="116217f0-7823-440b-8e05-7e1f023ebd88"]')
         email_pathx.send_keys(email)
         print(email)
@@ -84,8 +94,10 @@ def form_filling(i):
         done_pathx.click()
         print("done")
 
-        read['Form_Filling'][i] = "Done"
+        dataframe['Form_Filling'][i] = "Done"
         time.sleep(2)
+    else:
+        dataframe['Form_Filling'][i] = "Incorrect Data"
 
 threads = []
 while(count != rows):
@@ -100,5 +112,11 @@ while(count != rows):
     for t in threads:
         t.join()
 
-print(read)
-#read.to_csv('https://docs.google.com/spreadsheets/d/1Ii3g9GzR8_X3ZWXuR7vGLbjWnUECwDFuQyOPFw9_khU/export?format=csv')
+#print(dataframe)
+
+form_dataframe = pd.DataFrame(dataframe['Form_Filling'])
+row=1
+col=3
+worksheet = g_sheet.get_worksheet(0)
+set_with_dataframe(worksheet,form_dataframe,row,col)
+print("Google Sheet has been")
