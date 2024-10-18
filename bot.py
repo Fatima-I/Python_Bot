@@ -2,6 +2,7 @@ import pandas as pd
 from selenium import webdriver
 import time
 import re
+import threading
 from selenium.webdriver.chrome.service import Service as ChromeService
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.common.by import By
@@ -11,8 +12,14 @@ sheet_name = "Form Data"
 gid = '0'
 
 read = pd.read_csv('https://docs.google.com/spreadsheets/d/1Ii3g9GzR8_X3ZWXuR7vGLbjWnUECwDFuQyOPFw9_khU/export?format=csv')
-print(read)
+original = read
+#print(read)
 #print(read.iloc[0])
+rows = (int) (len(read.index))
+for i in range(0,rows):
+    if(pd.isnull(read['Form_Filling'][i])):
+        read['Form_Filling'][i] = "Not Done"
+
 read = read.drop_duplicates()
 read = read.dropna()
 read = read.reset_index()
@@ -20,16 +27,25 @@ read = read.reset_index()
 print(read)
 #rows = (int) (read.index.stop)
 rows = (int) (len(read.index))
-print(rows)
+#print(rows)
 
 print("From which row, you want to start form filling?")
 
 starting_row = (int) (input())
-if(starting_row < 2 or starting_row > rows+1):
-    while(starting_row < 2 or starting_row > rows+1):
+if(starting_row < 0 or starting_row > rows-1):
+    while(starting_row < 0 or starting_row > rows-1):
         print("Invalid Row Number, write again")
         starting_row = (int) (input())
-    
+
+count = starting_row
+
+print("Enter Number Of Threads")
+
+no_Of_Threads = (int) (input())
+if(no_Of_Threads < 0 or no_Of_Threads > rows-1):
+    while(no_Of_Threads < 0 or no_Of_Threads > rows):
+        print("Invalid Input, write again")
+        no_Of_Threads = (int) (input())   
 #print(name)
 
 def is_Valid_Name(n):
@@ -41,11 +57,13 @@ def is_Valid_Name(n):
 
 def is_Valid_Email(e):
     valid_email = r'^[a-z0-9]+[\._]?[a-z0-9]+[@]\w+[.]\w+$'
-    if(re.match(valid_email,e)):
+    if(re.match(valid_email,e,re.IGNORECASE)):
         return True
+    print("Invalid Email (Skipping the row)")
     return False
 
-for i in range ((starting_row-2),rows):   
+
+def form_filling(i):   
     if(is_Valid_Name(read['Names'][i]) and is_Valid_Email(read['Emails'][i])):
         web = webdriver.Chrome()
         web.get('https://tally.so/r/wzrV0a')
@@ -66,4 +84,21 @@ for i in range ((starting_row-2),rows):
         done_pathx.click()
         print("done")
 
+        read['Form_Filling'][i] = "Done"
         time.sleep(2)
+
+threads = []
+while(count != rows):
+    for i in range(1,(no_Of_Threads+1)):
+        if (count >= rows):
+            break
+        else:
+            new_threads = threading.Thread(target=form_filling,args=[count])
+            threads.append(new_threads)
+            new_threads.start()
+            count=count+1
+    for t in threads:
+        t.join()
+
+print(read)
+#read.to_csv('https://docs.google.com/spreadsheets/d/1Ii3g9GzR8_X3ZWXuR7vGLbjWnUECwDFuQyOPFw9_khU/export?format=csv')
