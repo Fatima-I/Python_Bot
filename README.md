@@ -5,5 +5,5 @@ https://docs.google.com/spreadsheets/d/1Ii3g9GzR8_X3ZWXuR7vGLbjWnUECwDFuQyOPFw9_
 The link to the form:
 https://tally.so/r/wzrV0a
 
-To run the program successfully, you first have to generate an Google Sheet API to access google sheet and then replace the credentials in credentials.json file,
-because after making the API credentials public, API gets disable.
+To run the program successfully, you first have to generate a Google Sheet API to access google sheet and, then replace the credentials in credentials.json file,
+because after making the API credentials public, API gets disable, so you have to generate a new API.
